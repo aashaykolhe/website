@@ -1,0 +1,5 @@
+{
+  "name": "Python DSA Visualizer",
+  "description": "An interactive platform to visualize Data Structures and Algorithms using Python, with AI-powered explanations and code generation from Gemini.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,11 @@
+
+import React from 'react';
+
+export const LoadingSpinner: React.FC = () => {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
+      <p className="text-sm text-text-secondary">Generating with Gemini...</p>
+    </div>
+  );
+};
