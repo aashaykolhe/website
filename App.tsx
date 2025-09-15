@@ -1,13 +1,47 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TopicView } from './components/TopicView';
 import { Topic } from './types';
-import { TOPICS } from './constants';
 import { PythonIcon } from './components/icons/PythonIcon';
+import { Dashboard } from './components/Dashboard';
+import { getAllTopics } from './services/db';
+import { LoadingSpinner } from './components/LoadingSpinner';
 
 const App: React.FC = () => {
-  const [selectedTopic, setSelectedTopic] = useState<Topic>(TOPICS[0]);
+  const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const allTopics = await getAllTopics();
+        setTopics(allTopics);
+      } catch (error) {
+        console.error("Failed to load topic data from DB:", error);
+        // Here you could implement a fallback or show an error message
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="bg-primary min-h-screen flex flex-col items-center justify-center">
+        <div className="flex items-center gap-3 mb-4">
+          <PythonIcon className="h-8 w-8 text-accent" />
+          <h1 className="text-xl font-bold text-text-primary tracking-wider">
+            Python DSA Visualizer
+          </h1>
+        </div>
+        <LoadingSpinner />
+        <p className="text-text-secondary mt-2">Initializing data store...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-primary min-h-screen text-text-primary font-sans flex flex-col">
@@ -23,9 +57,18 @@ const App: React.FC = () => {
         </a>
       </header>
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar selectedTopic={selectedTopic} onSelectTopic={setSelectedTopic} />
+        <Sidebar
+          topics={topics}
+          selectedTopic={selectedTopic}
+          onSelectTopic={setSelectedTopic}
+          onSelectHome={() => setSelectedTopic(null)}
+        />
         <main className="flex-1 p-6 overflow-y-auto">
-          <TopicView topic={selectedTopic} key={selectedTopic.id} />
+          {selectedTopic ? (
+            <TopicView topic={selectedTopic} key={selectedTopic.id} />
+          ) : (
+            <Dashboard topics={topics} onSelectTopic={setSelectedTopic} />
+          )}
         </main>
       </div>
     </div>

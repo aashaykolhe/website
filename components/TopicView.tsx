@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Topic, GeneratedContent } from '../types';
 import { generateContentForTopic } from '../services/geminiService';
+import { contentCache } from '../services/contentCache';
 import { LoadingSpinner } from './LoadingSpinner';
 import { CodeBlock } from './CodeBlock';
 import { BubbleSortVisualization } from './BubbleSortVisualization';
@@ -19,9 +20,13 @@ import { PythonListVisualization } from './PythonListVisualization';
 import { PythonDictVisualization } from './PythonDictVisualization';
 import { BinarySearchTreeVisualization } from './BinarySearchTreeVisualization';
 import { HeapVisualization } from './HeapVisualization';
-import { GraphVisualization } from './GraphVisualization';
+import { GraphTraversalVisualization } from './GraphTraversalVisualization';
 import { TrieVisualization } from './TrieVisualization';
 import { RecursionVisualization } from './RecursionVisualization';
+import { FibonacciMemoizationVisualization } from './FibonacciMemoizationVisualization';
+import { CoinChangeVisualization } from './CoinChangeVisualization';
+import { KnapsackVisualization } from './KnapsackVisualization';
+import { DijkstraVisualization } from './DijkstraVisualization';
 
 interface TopicViewProps {
   topic: Topic;
@@ -59,12 +64,20 @@ const renderVisualization = (topic: Topic) => {
         return <BinarySearchTreeVisualization />;
     case 'Heap':
         return <HeapVisualization />;
-    case 'Graph':
-        return <GraphVisualization />;
+    case 'GraphTraversal':
+        return <GraphTraversalVisualization />;
     case 'Trie':
         return <TrieVisualization />;
     case 'Recursion':
         return <RecursionVisualization />;
+    case 'FibonacciMemoization':
+        return <FibonacciMemoizationVisualization />;
+    case 'CoinChange':
+        return <CoinChangeVisualization />;
+    case 'Knapsack':
+        return <KnapsackVisualization />;
+    case 'Dijkstra':
+        return <DijkstraVisualization />;
     case 'None':
     default:
       return (
@@ -81,7 +94,18 @@ export const TopicView: React.FC<TopicViewProps> = ({ topic }) => {
 
   const fetchContent = useCallback(async () => {
     setIsLoading(true);
+    
+    // Check cache first
+    const cachedContent = contentCache.get(topic.id);
+    if (cachedContent) {
+      setContent(cachedContent);
+      setIsLoading(false);
+      return;
+    }
+
+    // If not in cache, fetch and then store
     const generatedContent = await generateContentForTopic(topic);
+    contentCache.set(topic.id, generatedContent);
     setContent(generatedContent);
     setIsLoading(false);
   }, [topic]);

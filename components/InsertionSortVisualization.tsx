@@ -1,73 +1,117 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { VisualizationControls } from './VisualizationControls';
 
 const generateRandomArray = (size: number): number[] => {
   return Array.from({ length: size }, () => Math.floor(Math.random() * 90) + 10);
 };
 
-const INITIAL_ARRAY_SIZE = 12;
-const ANIMATION_SPEED_MS = 100;
+type InsertionSortState = {
+  array?: number[];
+  currentIndex?: number | null;
+  comparingIndex?: number | null;
+  sortedUpto?: number;
+  status?: 'sorted';
+};
+
+function* insertionSortGenerator(arr: number[]): Generator<InsertionSortState, void, void> {
+  let localArray = [...arr];
+  let n = localArray.length;
+
+  for (let i = 1; i < n; i++) {
+    let key = localArray[i];
+    let j = i - 1;
+    yield { currentIndex: i, sortedUpto: i };
+    
+    while (j >= 0 && localArray[j] > key) {
+      yield { comparingIndex: j };
+      localArray[j + 1] = localArray[j];
+      yield { array: [...localArray] };
+      j = j - 1;
+    }
+    localArray[j + 1] = key;
+    yield { array: [...localArray], comparingIndex: null };
+  }
+  
+  yield { currentIndex: null, comparingIndex: null, status: 'sorted' };
+}
 
 export const InsertionSortVisualization: React.FC = () => {
-  const [array, setArray] = useState<number[]>(() => generateRandomArray(INITIAL_ARRAY_SIZE));
-  const [isSorting, setIsSorting] = useState(false);
+  const [array, setArray] = useState<number[]>([]);
+  const [arraySize, setArraySize] = useState(12);
+  const [speed, setSpeed] = useState(50);
+  const [status, setStatus] = useState<'idle' | 'sorting' | 'paused' | 'sorted'>('idle');
+
   const [currentIndex, setCurrentIndex] = useState<number | null>(null);
   const [comparingIndex, setComparingIndex] = useState<number | null>(null);
+  const [sortedUpto, setSortedUpto] = useState<number>(0);
   
-  const isSortingRef = useRef(isSorting);
-  isSortingRef.current = isSorting;
+  const generatorRef = useRef<Generator<InsertionSortState, void, void> | null>(null);
+  const timeoutRef = useRef<number | null>(null);
 
-  const resetArray = useCallback(() => {
-    setIsSorting(false);
-    isSortingRef.current = false;
-    setArray(generateRandomArray(INITIAL_ARRAY_SIZE));
+  const resetArray = useCallback((size: number) => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setStatus('idle');
+    setArray(generateRandomArray(size));
     setCurrentIndex(null);
     setComparingIndex(null);
+    setSortedUpto(0);
+    generatorRef.current = null;
   }, []);
 
-  const insertionSort = useCallback(async () => {
-    if (isSorting) return;
-    setIsSorting(true);
-    isSortingRef.current = true;
-
-    let localArray = [...array];
-    let n = localArray.length;
-
-    for (let i = 1; i < n; i++) {
-        if (!isSortingRef.current) return;
-        let key = localArray[i];
-        let j = i - 1;
-        setCurrentIndex(i);
-        await new Promise(resolve => setTimeout(resolve, ANIMATION_SPEED_MS));
-
-        while (j >= 0 && localArray[j] > key) {
-            if (!isSortingRef.current) return;
-            setComparingIndex(j);
-            localArray[j + 1] = localArray[j];
-            setArray([...localArray]);
-            await new Promise(resolve => setTimeout(resolve, ANIMATION_SPEED_MS));
-            j = j - 1;
-        }
-        localArray[j + 1] = key;
-        setArray([...localArray]);
-        await new Promise(resolve => setTimeout(resolve, ANIMATION_SPEED_MS));
-    }
-
-    setCurrentIndex(null);
-    setComparingIndex(null);
-    setIsSorting(false);
-    isSortingRef.current = false;
-  }, [array, isSorting]);
-  
   useEffect(() => {
-    return () => {
-      isSortingRef.current = false;
-    };
-  }, []);
+    resetArray(arraySize);
+  }, [arraySize, resetArray]);
+
+  const stepForward = useCallback(() => {
+    if (!generatorRef.current) return;
+    // FIX: Destructure done and value from generator result to satisfy TypeScript's control flow analysis.
+    const { done, value } = generatorRef.current.next();
+    if (done || !value) {
+      setStatus('sorted');
+      setSortedUpto(arraySize);
+      return;
+    }
+    const { array: newArray, currentIndex: ci, comparingIndex: cpi, sortedUpto: su, status: newStatus } = value;
+    if (newArray) setArray(newArray);
+    if (ci !== undefined) setCurrentIndex(ci);
+    if (cpi !== undefined) setComparingIndex(cpi);
+    if (su !== undefined) setSortedUpto(su);
+    if (newStatus === 'sorted') {
+      setStatus('sorted');
+      setSortedUpto(arraySize);
+    }
+  }, [arraySize]);
+
+  useEffect(() => {
+    if (status === 'sorting') {
+      const delay = 350 - speed * 3;
+      timeoutRef.current = window.setTimeout(stepForward, delay);
+    }
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, [status, speed, stepForward]);
+
+  const handlePlayPause = () => {
+    if (status === 'sorted') return;
+    if (status === 'sorting') setStatus('paused');
+    else {
+      if (status === 'idle') generatorRef.current = insertionSortGenerator(array);
+      setStatus('sorting');
+    }
+  };
+
+  const handleStep = () => {
+    if (status === 'sorted') return;
+    if (status === 'idle') {
+      generatorRef.current = insertionSortGenerator(array);
+      setStatus('paused');
+    }
+    stepForward();
+  };
 
   const getBarColor = (index: number) => {
+    if (status === 'sorted' || index < sortedUpto) return 'bg-green-500';
     if (index === currentIndex) return 'bg-yellow-500';
     if (index === comparingIndex) return 'bg-red-500';
-    if (!isSorting || (currentIndex !== null && index < currentIndex)) return 'bg-green-500';
     return 'bg-accent';
   };
 
@@ -83,22 +127,17 @@ export const InsertionSortVisualization: React.FC = () => {
           ></div>
         ))}
       </div>
-      <div className="flex gap-4 pt-4">
-        <button
-          onClick={resetArray}
-          disabled={isSorting}
-          className="px-4 py-2 bg-secondary rounded-md text-text-primary hover:bg-secondary/70 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          Reset
-        </button>
-        <button
-          onClick={insertionSort}
-          disabled={isSorting}
-          className="px-4 py-2 bg-accent rounded-md text-primary font-semibold hover:bg-sky-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isSorting ? 'Sorting...' : 'Start Sort'}
-        </button>
-      </div>
+      <VisualizationControls
+        status={status}
+        onPlayPause={handlePlayPause}
+        onStep={handleStep}
+        onReset={() => resetArray(arraySize)}
+        arraySize={arraySize}
+        onArraySizeChange={setArraySize}
+        maxSize={30}
+        speed={speed}
+        onSpeedChange={setSpeed}
+      />
     </div>
   );
 };
